@@ -53,13 +53,16 @@ func TestRegisterCommandBehavior_WhenPositionIsNotTaken_ShouldRegisterBehavior(t
 }
 
 func TestRegisterCommandBehavior_WhenPositionIsTaken_ShouldReturnError(t *testing.T) {
+	// arrange
 	defer behaviors_cleanup(t)
 	behavior1 := &Behavior1{}
 	behavior2 := &Behavior1{}
 
+	// act
 	RegisterCommandBehavior(0, behavior1)
 	err := RegisterCommandBehavior(0, behavior2)
 
+	// assert
 	assert.Error(t, err)
 }
 
