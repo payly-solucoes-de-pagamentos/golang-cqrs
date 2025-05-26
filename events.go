@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"go.uber.org/multierr"
 )
@@ -19,8 +20,11 @@ type EventDelivery struct {
 	event     interface{}
 }
 
-var eventHandlers map[reflect.Type][]interface{}
-var eventListener chan *EventDelivery
+var (
+	eventHandlers map[reflect.Type][]interface{}
+	eventListener chan *EventDelivery
+	eventMu       sync.RWMutex
+)
 
 func init() {
 	eventHandlers = make(map[reflect.Type][]interface{})
@@ -30,8 +34,11 @@ func init() {
 func RegisterEventSubscriber[TEvent any](handler IEventHandler[TEvent]) error {
 	var event TEvent
 	eventType := reflect.TypeOf(event)
-	handlers, found := eventHandlers[eventType]
 
+	eventMu.Lock()
+	defer eventMu.Unlock()
+
+	handlers, found := eventHandlers[eventType]
 	if !found {
 		eventHandlers[eventType] = []interface{}{
 			handler,
@@ -40,7 +47,6 @@ func RegisterEventSubscriber[TEvent any](handler IEventHandler[TEvent]) error {
 	}
 
 	eventHandlers[eventType] = append(handlers, handler)
-
 	return nil
 }
 
@@ -58,7 +64,10 @@ func RegisterEventSubscribers[TEvent any](handlers ...IEventHandler[TEvent]) err
 
 func PublishEvent[TEvent any](ctx context.Context, event TEvent) error {
 	eventType := reflect.TypeOf(event)
+
+	eventMu.RLock()
 	handlers, found := eventHandlers[eventType]
+	eventMu.RUnlock()
 
 	if !found {
 		msg := fmt.Sprintf("no event handler found event of type: %T", event)
@@ -106,6 +115,9 @@ func PublishEventAsync[TEvent any](ctx context.Context, event TEvent) error {
 		event:     event,
 	}
 
+	eventMu.RLock()
+	defer eventMu.RUnlock()
+
 	eventListener <- delivery
 
 	return nil
@@ -123,11 +135,23 @@ func handleRecover() {
 
 func listen() {
 	defer handleRecover()
-	for delivery := range eventListener {
+
+	for {
+		eventMu.RLock()
+		listener := eventListener
+		eventMu.RUnlock()
+
+		delivery, ok := <-listener
+		if !ok {
+			return
+		}
+
 		event := delivery.event
 		eventType := delivery.eventType
-		handlers, ok := eventHandlers[eventType]
 
+		eventMu.RLock()
+		handlers, ok := eventHandlers[eventType]
+		eventMu.RUnlock()
 		if !ok {
 			return
 		}
