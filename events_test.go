@@ -37,8 +37,10 @@ func (h *FakeEventHandler3) Handle(ctx context.Context, event *FakeEvent) error 
 
 func events_cleanup(t *testing.T) {
 	t.Cleanup(func() {
-		mu.Lock()
-		defer mu.Unlock()
+		eventMu.Lock()
+		defer eventMu.Unlock()
+
+		close(eventListener)
 		eventHandlers = make(map[reflect.Type][]interface{})
 		eventListener = make(chan *EventDelivery)
 	})
