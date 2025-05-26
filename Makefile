@@ -4,4 +4,4 @@
 
 test:
 	mkdir -p out && \
-	go test -covermode=atomic -coverprofile=out/coverage.out $(go list ./... | grep -v vendor/)
+	go test -race -covermode=atomic -coverprofile=coverage.out $(go list ./... | grep -v vendor/)
