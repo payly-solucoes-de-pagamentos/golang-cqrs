@@ -1,4 +1,4 @@
-module github.com/raizen/golang-cqrs
+module github.com/payly-solucoes-de-pagamentos/golang-cqrs
 
 go 1.19
 
