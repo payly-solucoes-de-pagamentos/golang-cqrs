@@ -2,26 +2,24 @@ package cqrs
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type Behavior1 struct {
-}
+type Behavior1 struct{}
+type Behavior2 struct{}
+type Behavior3 struct{}
+
+var behaviorMu sync.RWMutex
 
 func (b *Behavior1) Handle(ctx context.Context, request interface{}, next NextFunc) (interface{}, error) {
 	return next()
 }
 
-type Behavior2 struct {
-}
-
 func (b *Behavior2) Handle(ctx context.Context, request interface{}, next NextFunc) (interface{}, error) {
 	return next()
-}
-
-type Behavior3 struct {
 }
 
 func (b *Behavior3) Handle(ctx context.Context, request interface{}, next NextFunc) (interface{}, error) {
@@ -35,59 +33,55 @@ func (b *Behavior3) Handle(ctx context.Context, request interface{}, next NextFu
 }
 
 func behaviors_cleanup(t *testing.T) {
-	commandBehaviors = make(map[int]interface{})
-	queryBehaviors = make(map[int]interface{})
+	t.Cleanup(func() {
+		behaviorMu.Lock()
+		defer behaviorMu.Unlock()
+		commandBehaviors = make(map[int]interface{})
+		queryBehaviors = make(map[int]interface{})
+	})
 }
 
 func TestRegisterCommandBehavior_WhenPositionIsNotTaken_ShouldRegisterBehavior(t *testing.T) {
-	// arrange
 	defer behaviors_cleanup(t)
 	behavior := &Behavior1{}
 
-	// act
 	RegisterCommandBehavior(0, behavior)
 
-	// assert
+	behaviorMu.RLock()
+	defer behaviorMu.RUnlock()
 	assert.Equal(t, commandBehaviors[0], behavior)
 }
 
 func TestRegisterCommandBehavior_WhenPositionIsTaken_ShouldReturnError(t *testing.T) {
-	// arrange
 	defer behaviors_cleanup(t)
 	behavior1 := &Behavior1{}
 	behavior2 := &Behavior1{}
 
-	// act
 	RegisterCommandBehavior(0, behavior1)
 	err := RegisterCommandBehavior(0, behavior2)
 
-	// assert
 	assert.Error(t, err)
 }
 
 func TestRegisterQueryBehavior_WhenPositionIsNotTaken_ShouldRegisterBehavior(t *testing.T) {
-	// arrange
 	defer behaviors_cleanup(t)
 	behavior := &Behavior1{}
 
-	// act
 	RegisterQueryBehavior(0, behavior)
 
-	// assert
+	behaviorMu.RLock()
+	defer behaviorMu.RUnlock()
 	assert.Equal(t, queryBehaviors[0], behavior)
 }
 
 func TestRegisterQueryBehavior_WhenPositionIsTaken_ShouldReturnError(t *testing.T) {
-	// arrange
 	defer behaviors_cleanup(t)
 	behavior1 := &Behavior1{}
 	behavior2 := &Behavior1{}
 
-	// act
 	RegisterQueryBehavior(0, behavior1)
 	err := RegisterQueryBehavior(0, behavior2)
 
-	// assert
 	assert.Error(t, err)
 }
 

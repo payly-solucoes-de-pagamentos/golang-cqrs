@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"reflect"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,8 +34,6 @@ func (h *FakeEventHandler3) Handle(ctx context.Context, event *FakeEvent) error 
 	err := errors.New("something unexpected happened")
 	panic(err)
 }
-
-var mu sync.RWMutex
 
 func events_cleanup(t *testing.T) {
 	t.Cleanup(func() {

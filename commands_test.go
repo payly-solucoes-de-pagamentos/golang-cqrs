@@ -3,6 +3,7 @@ package cqrs
 import (
 	"context"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,8 +22,12 @@ func (c *CommandHandler1) Handle(ctx context.Context, command *Command1) (*Respo
 	return &Response{}, nil
 }
 
+var mu sync.RWMutex
+
 func commands_cleanup(t *testing.T) {
 	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
 		commandHandlers = make(map[reflect.Type]interface{})
 	})
 }
@@ -37,6 +42,8 @@ func TestRegisterCommandHandler_WhenNotAnyHandlerForCommand_ShouldAddHandlerToMa
 	err := RegisterCommandHandler[*Command1, *Response](handler)
 
 	// assert
+	mu.RLock()
+	defer mu.RUnlock()
 	assert.Nil(t, err)
 	assert.Equal(t, commandHandlers[commandType], handler)
 }
@@ -69,11 +76,12 @@ func TestSend_WhenHandlerCantBeCasted_ShouldReturnError(t *testing.T) {
 	// arrange
 	defer commands_cleanup(t)
 	var handler interface{} = func() {
-
 	}
 	command := &Command1{}
 	commandType := reflect.TypeOf(command)
+	mu.Lock()
 	commandHandlers[commandType] = handler
+	mu.Unlock()
 
 	// act
 	_, err := Send[*Command1, *Response](context.TODO(), command)
