@@ -2,7 +2,6 @@ package cqrs
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,8 +10,6 @@ import (
 type Behavior1 struct{}
 type Behavior2 struct{}
 type Behavior3 struct{}
-
-var behaviorMu sync.RWMutex
 
 func (b *Behavior1) Handle(ctx context.Context, request interface{}, next NextFunc) (interface{}, error) {
 	return next()

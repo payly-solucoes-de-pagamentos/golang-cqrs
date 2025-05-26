@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/ahmetb/go-linq/v3"
 )
@@ -13,7 +14,10 @@ type ICommandHandler[TCommand any, TResponse any] interface {
 	Handle(ctx context.Context, command TCommand) (TResponse, error)
 }
 
-var commandHandlers map[reflect.Type]interface{}
+var (
+	commandHandlers map[reflect.Type]interface{}
+	commandMu       sync.RWMutex
+)
 
 func init() {
 	commandHandlers = make(map[reflect.Type]interface{})
@@ -22,6 +26,9 @@ func init() {
 func RegisterCommandHandler[TCommand any, TResponse any](handler ICommandHandler[TCommand, TResponse]) error {
 	var command TCommand
 	commandType := reflect.TypeOf(command)
+
+	commandMu.Lock()
+	defer commandMu.Unlock()
 
 	_, found := commandHandlers[commandType]
 
@@ -38,7 +45,9 @@ func RegisterCommandHandler[TCommand any, TResponse any](handler ICommandHandler
 func Send[TCommand any, TResponse any](ctx context.Context, command TCommand) (TResponse, error) {
 	commandType := reflect.TypeOf(command)
 
+	commandMu.RLock()
 	h, found := commandHandlers[commandType]
+	commandMu.RUnlock()
 
 	if !found {
 		msg := fmt.Sprintf("no handler registered for command %T", command)
