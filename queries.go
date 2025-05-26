@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/ahmetb/go-linq/v3"
 )
@@ -13,7 +14,10 @@ type IQueryHandler[TQuery any, TResponse any] interface {
 	Handle(ctx context.Context, query TQuery) (TResponse, error)
 }
 
-var queryHandlers map[reflect.Type]interface{}
+var (
+	queryHandlers map[reflect.Type]interface{}
+	queryMu       sync.RWMutex
+)
 
 func init() {
 	queryHandlers = make(map[reflect.Type]interface{})
@@ -22,6 +26,9 @@ func init() {
 func RegisterQueryHandler[TQuery any, TResponse any](handler IQueryHandler[TQuery, TResponse]) error {
 	var query TQuery
 	queryType := reflect.TypeOf(query)
+
+	queryMu.Lock()
+	defer queryMu.Unlock()
 
 	_, found := queryHandlers[queryType]
 
@@ -38,7 +45,9 @@ func RegisterQueryHandler[TQuery any, TResponse any](handler IQueryHandler[TQuer
 func Request[TQuery any, TResponse any](ctx context.Context, query TQuery) (TResponse, error) {
 	queryType := reflect.TypeOf(query)
 
+	queryMu.RLock()
 	h, found := queryHandlers[queryType]
+	queryMu.RUnlock()
 
 	if !found {
 		msg := fmt.Sprintf("no handler registered for query %T", query)

@@ -3,23 +3,26 @@ package cqrs
 import (
 	"context"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type Query1 struct {
-}
+type Query1 struct{}
 
-type QueryHandler1 struct {
-}
+type QueryHandler1 struct{}
 
 func (c *QueryHandler1) Handle(ctx context.Context, query *Query1) (*Response, error) {
 	return &Response{}, nil
 }
 
+var queryTestMu sync.RWMutex
+
 func querys_cleanup(t *testing.T) {
 	t.Cleanup(func() {
+		queryTestMu.Lock()
+		defer queryTestMu.Unlock()
 		queryHandlers = make(map[reflect.Type]interface{})
 	})
 }
@@ -34,6 +37,8 @@ func TestRegisterQueryHandler_WhenNotAnyHandlerForQuery_ShouldAddHandlerToMap(t 
 	err := RegisterQueryHandler[*Query1, *Response](handler)
 
 	// assert
+	queryTestMu.RLock()
+	defer queryTestMu.RUnlock()
 	assert.Nil(t, err)
 	assert.Equal(t, queryHandlers[queryType], handler)
 }
@@ -65,12 +70,13 @@ func TestRequest_WhenNoHandlerRegistered_ShouldReturnError(t *testing.T) {
 func TestRequest_WhenHandlerCantBeCasted_ShouldReturnError(t *testing.T) {
 	// arrange
 	defer querys_cleanup(t)
-	var handler interface{} = func() {
-
-	}
+	var handler interface{} = func() {}
 	query := &Query1{}
 	queryType := reflect.TypeOf(query)
+
+	queryTestMu.Lock()
 	queryHandlers[queryType] = handler
+	queryTestMu.Unlock()
 
 	// act
 	_, err := Request[*Query1, *Response](context.TODO(), query)
