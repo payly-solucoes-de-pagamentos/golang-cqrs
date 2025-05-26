@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,8 +36,12 @@ func (h *FakeEventHandler3) Handle(ctx context.Context, event *FakeEvent) error 
 	panic(err)
 }
 
+var mu sync.RWMutex
+
 func events_cleanup(t *testing.T) {
 	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
 		eventHandlers = make(map[reflect.Type][]interface{})
 		eventListener = make(chan *EventDelivery)
 	})
@@ -53,10 +58,11 @@ func TestRegisterEventSubscriber_WhenFirstHandler_ShouldAddHandlerToMap(t *testi
 	err := RegisterEventSubscriber[*FakeEvent](handler)
 
 	// assert
+	mu.RLock()
+	defer mu.RUnlock()
 	assert.Nil(t, err)
 	assert.Contains(t, eventHandlers[eventType], handler)
 	assert.Len(t, eventHandlers[eventType], 1)
-
 }
 
 func TestRegisterEventSubscriber_WhenNotFirstHandler_ShouldAddHandlersToMap(t *testing.T) {
@@ -72,6 +78,8 @@ func TestRegisterEventSubscriber_WhenNotFirstHandler_ShouldAddHandlersToMap(t *t
 	err := RegisterEventSubscriber[*FakeEvent](handler2)
 
 	// assert
+	mu.RLock()
+	defer mu.RUnlock()
 	assert.Nil(t, err)
 	assert.Contains(t, eventHandlers[eventType], handler1)
 	assert.Contains(t, eventHandlers[eventType], handler2)
@@ -83,9 +91,7 @@ func TestRegisterEventSubscribers_WhenMultipleHadlers_ShouldAddHandlersToMap(t *
 	defer events_cleanup(t)
 	var event *FakeEvent
 	eventType := reflect.TypeOf(event)
-	defer t.Cleanup(func() {
-
-	})
+	defer t.Cleanup(func() {})
 	handler1 := &FakeEventHandler1{}
 	handler2 := &FakeEventHandler2{}
 
@@ -93,6 +99,8 @@ func TestRegisterEventSubscribers_WhenMultipleHadlers_ShouldAddHandlersToMap(t *
 	err := RegisterEventSubscribers[*FakeEvent](handler1, handler2)
 
 	// assert
+	mu.RLock()
+	defer mu.RUnlock()
 	assert.Nil(t, err)
 	assert.Contains(t, eventHandlers[eventType], handler1)
 	assert.Contains(t, eventHandlers[eventType], handler2)
@@ -172,6 +180,7 @@ func TestPublishEvent_WhenEvenHandlerCantBeCastedAndHandle_ShouldNotReturnError(
 }
 
 func TestPublishEvent_WhenEvenHandlerCantBeCastedAndNotHandle_ShouldReturnError(t *testing.T) {
+	// arrange
 	defer events_cleanup(t)
 	var event interface{} = &FakeEvent{
 		Message: "test",
