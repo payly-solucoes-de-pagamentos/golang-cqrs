@@ -38,7 +38,6 @@ func (h *FakeEventHandler3) Handle(ctx context.Context, event *FakeEvent) error 
 func events_cleanup(t *testing.T) {
 	t.Cleanup(func() {
 		eventHandlers = make(map[reflect.Type][]interface{})
-		eventListener = make(chan *EventDelivery)
 	})
 }
 
@@ -185,61 +184,4 @@ func TestPublishEvent_WhenEvenHandlerCantBeCastedAndNotHandle_ShouldReturnError(
 
 	// assert
 	assert.NotNil(t, err)
-}
-
-func TestPublishEventAsync_WhenListening_ShouldHandleEvent(t *testing.T) {
-	// arrange
-	defer events_cleanup(t)
-	event := &FakeEvent{
-		Message: "test",
-	}
-	handler := &FakeEventHandler1{}
-	RegisterEventSubscriber[*FakeEvent](handler)
-	Listen()
-
-	// act
-	publish := func() {
-		PublishEventAsync(context.TODO(), event)
-	}
-
-	// assert
-	assert.NotPanics(t, publish)
-}
-
-func TestPublishEventAsync_WhenHandlerNotFound_ShouldReturnEarlyOnDelivery(t *testing.T) {
-	// arrange
-	defer events_cleanup(t)
-	event := struct {
-		Message string
-	}{
-		Message: "test",
-	}
-	Listen()
-
-	// act
-	publish := func() {
-		PublishEventAsync(context.TODO(), event)
-	}
-
-	// assert
-	assert.NotPanics(t, publish)
-}
-
-func TestPublishEventAsync_WhenHandlerPanic_ShouldRecover(t *testing.T) {
-	// arrange
-	defer events_cleanup(t)
-	event := &FakeEvent{
-		Message: "test",
-	}
-	handler := &FakeEventHandler3{}
-	RegisterEventSubscriber[*FakeEvent](handler)
-	Listen()
-
-	// act
-	publish := func() {
-		PublishEventAsync(context.TODO(), event)
-	}
-
-	// assert
-	assert.NotPanics(t, publish)
 }

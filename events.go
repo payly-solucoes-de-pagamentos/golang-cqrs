@@ -13,18 +13,10 @@ type IEventHandler[TEvent any] interface {
 	Handle(ctx context.Context, event TEvent) error
 }
 
-type EventDelivery struct {
-	ctx       context.Context
-	eventType reflect.Type
-	event     interface{}
-}
-
 var eventHandlers map[reflect.Type][]interface{}
-var eventListener chan *EventDelivery
 
 func init() {
 	eventHandlers = make(map[reflect.Type][]interface{})
-	eventListener = make(chan *EventDelivery)
 }
 
 func RegisterEventSubscriber[TEvent any](handler IEventHandler[TEvent]) error {
@@ -95,50 +87,4 @@ func PublishEvent[TEvent any](ctx context.Context, event TEvent) error {
 	}
 
 	return err
-}
-
-func PublishEventAsync[TEvent any](ctx context.Context, event TEvent) error {
-	eventType := reflect.TypeOf(event)
-
-	delivery := &EventDelivery{
-		ctx:       ctx,
-		eventType: eventType,
-		event:     event,
-	}
-
-	eventListener <- delivery
-
-	return nil
-}
-
-func Listen() {
-	go listen()
-}
-
-func handleRecover() {
-	if err := recover(); err != nil {
-		go listen()
-	}
-}
-
-func listen() {
-	defer handleRecover()
-	for delivery := range eventListener {
-		event := delivery.event
-		eventType := delivery.eventType
-		handlers, ok := eventHandlers[eventType]
-
-		if !ok {
-			return
-		}
-
-		args := []reflect.Value{
-			reflect.ValueOf(delivery.ctx),
-			reflect.ValueOf(event),
-		}
-
-		for _, handler := range handlers {
-			reflect.ValueOf(handler).MethodByName("Handle").Call(args)
-		}
-	}
 }
